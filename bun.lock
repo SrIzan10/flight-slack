@@ -5,6 +5,7 @@
       "name": "slackbot-workshop",
       "dependencies": {
         "@keyv/sqlite": "^4.0.5",
+        "@prisma/client": "^6.11.1",
         "@slack/bolt": "^4.4.0",
         "chrono-node": "^2.8.3",
         "keyv": "^5.3.4",
@@ -27,6 +28,8 @@
     "@npmcli/fs": ["@npmcli/fs@1.1.1", "", { "dependencies": { "@gar/promisify": "^1.0.1", "semver": "^7.3.5" } }, "sha512-8KG5RD0GVP4ydEzRn/I4BNDuxDtqVbOdm8675T49OIG/NGhaK0pjPX7ZcDlvKYbA+ulvVK3ztfcF4uBdOxuJbQ=="],
 
     "@npmcli/move-file": ["@npmcli/move-file@1.1.2", "", { "dependencies": { "mkdirp": "^1.0.4", "rimraf": "^3.0.2" } }, "sha512-1SUf/Cg2GzGDyaf15aR9St9TWlb+XvbZXWpDx8YKs7MLzMH/BCeopv+y9vzrzgkfykCGuWOlSu3mZhj2+FQcrg=="],
+
+    "@prisma/client": ["@prisma/client@6.11.1", "", { "peerDependencies": { "prisma": "*", "typescript": ">=5.1.0" }, "optionalPeers": ["prisma", "typescript"] }, "sha512-5CLFh8QP6KxRm83pJ84jaVCeSVPQr8k0L2SEtOJHwdkS57/VQDcI/wQpGmdyOZi+D9gdNabdo8tj1Uk+w+upsQ=="],
 
     "@slack/bolt": ["@slack/bolt@4.4.0", "", { "dependencies": { "@slack/logger": "^4.0.0", "@slack/oauth": "^3.0.3", "@slack/socket-mode": "^2.0.4", "@slack/types": "^2.14.0", "@slack/web-api": "^7.9.1", "axios": "^1.8.3", "express": "^5.0.0", "path-to-regexp": "^8.1.0", "raw-body": "^3", "tsscmp": "^1.0.6" }, "peerDependencies": { "@types/express": "^5.0.0" } }, "sha512-FjGl1+hUo0w6ZSP2v3ZyjEkpGnA2t83Kz/Et2aEtIe8rRxrHd8R9CKShpd7BesuIcvqaz2eVe33YiKGohOiMKw=="],
 

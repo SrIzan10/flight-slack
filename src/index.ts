@@ -1,3 +1,4 @@
+import { PrismaClient } from "@prisma/client";
 import { App } from "@slack/bolt";
 
 const app = new App({
@@ -6,11 +7,7 @@ const app = new App({
   appToken: process.env.SLACK_APP_TOKEN,
 });
 
-const db = new Keyv(
-  new KeyvSqlite({
-    uri: "db.sqlite",
-  })
-);
+const db = new PrismaClient();
 
 await app.start();
 console.log("We're up and running :)");
