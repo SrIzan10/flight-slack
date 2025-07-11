@@ -1,7 +1,4 @@
 import { App } from "@slack/bolt";
-import * as chrono from "chrono-node";
-import Keyv from "keyv";
-import KeyvSqlite from "@keyv/sqlite";
 
 const app = new App({
   token: process.env.SLACK_BOT_TOKEN,
