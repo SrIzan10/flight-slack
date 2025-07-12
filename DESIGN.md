@@ -15,7 +15,7 @@ A Slack bot that allows users to track their flights and automatically posts upd
 ### Commands
 
 #### `/flight-add`
-**Usage:** `/flight-add [flight_number] [date] [departure_airport] [arrival_airport]`
+**Usage:** `/flight-add [airport_code] [DD-MM-YY]`
 **Description:** Add a new flight to track
 **Example:** `/flight-add AA1234 2024-01-15 LAX JFK`
 
@@ -35,7 +35,7 @@ A Slack bot that allows users to track their flights and automatically posts upd
 
 ## Data Models
 
-### User
+### Usere airport coordinate data to determine proxim
 - `id`: Unique identifier
 - `slack_user_id`: Slack user ID
 - `slack_channel_id`: User's personal channel ID
