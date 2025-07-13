@@ -15,7 +15,7 @@ const app = new App({
 
 export const db = new PrismaClient();
 export const airports = new Airports();
-export const cache = new BunCache(true);
+export const cache = new BunCache();
 export const openSky = new OpenskyService();
 export const flightAware = new FlightAware();
 export const adsbDb = new AdsBDB();
@@ -199,12 +199,10 @@ app.action('flight_selection', async ({ body, ack, respond }) => {
       return;
     }
 
-    const fa_flight_id = selectedValue;
+    const callsign = selectedValue;
 
-    // We no longer have cached flight data, so we need to fetch flight details separately
-    // For now, just confirm the selection with the flight ID
     await respond({
-      text: `✅ Added flight ${fa_flight_id} to your tracking list!`,
+      text: `✅ Added flight ${callsign} to your tracking list!`,
       replace_original: true,
     });
   } catch (error) {
