@@ -67,7 +67,6 @@ app.command('/flight-add', async ({ command, ack, respond }) => {
 
   try {
     const response = await flightAware.getAirportFlights(iataCode, date?.begin, date?.end, undefined, hour);
-    Bun.write('flightawaretest.json', JSON.stringify(response, null, 2));
 
     const flights = response.scheduled_departures;
 
