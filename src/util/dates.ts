@@ -10,9 +10,17 @@ export function getRange(date?: Date, days = 1): { begin: number; end: number } 
 }
 
 // AI GENERATED CODE BEGINS HERE
-export function parseDate(input?: string): { date: { begin: number; end: number } | null; error?: string } {
+export function parseDate(input?: string, todayBeginCurrentTime = false): { date: { begin: number; end: number } | null; error?: string } {
   // No date provided - use today
   if (!input || input.trim() === '') {
+    if (todayBeginCurrentTime) {
+      const now = new Date();
+      const begin = Math.floor(now.getTime() / 1000);
+      const endOfDay = new Date(now);
+      endOfDay.setHours(23, 59, 59, 999);
+      const end = Math.floor(endOfDay.getTime() / 1000);
+      return { date: { begin, end } };
+    }
     return { date: getRange() };
   }
 
@@ -20,6 +28,14 @@ export function parseDate(input?: string): { date: { begin: number; end: number 
   
   // Handle relative dates
   if (cleaned === 'today') {
+    if (todayBeginCurrentTime) {
+      const now = new Date();
+      const begin = Math.floor(now.getTime() / 1000);
+      const endOfDay = new Date(now);
+      endOfDay.setHours(23, 59, 59, 999);
+      const end = Math.floor(endOfDay.getTime() / 1000);
+      return { date: { begin, end } };
+    }
     return { date: getRange() };
   }
   

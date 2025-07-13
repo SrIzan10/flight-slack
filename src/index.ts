@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import BunCache from '@samocodes/bun-cache';
 import { App } from '@slack/bolt';
 import { OpenskyService } from './util/opensky';
+import { FlightAware, type ScheduledDeparture } from './util/flightAware';
 import { parseDate, formatDate } from './util/dates';
 import { Airports } from './util/airports';
 import { AdsBDB } from './util/adsbdb';
@@ -14,158 +15,175 @@ const app = new App({
 
 export const db = new PrismaClient();
 export const airports = new Airports();
-export const cache = new BunCache();
+export const cache = new BunCache(true);
 export const openSky = new OpenskyService();
+export const flightAware = new FlightAware();
 export const adsbDb = new AdsBDB();
 
 app.command('/flight-add', async ({ command, ack, respond }) => {
+  const EXAMPLE = `_Example: \`/flight-add AGP today 11\` looks for flights from AGP today at 11:00 (24-hour)._`;
   await ack();
 
-  let [airportCode, dateInput] = command.text.split(' ');
+  const parts = command.text.split(' ');
+  let [airportCode, dateInput, hourInput] = parts;
+  
   if (!airportCode || airportCode.length !== 3) {
-    await respond({ text: 'Please provide a valid airport code.' });
+    await respond({ text: `Please provide a valid 3 character airport code.\n${EXAMPLE}` });
+    return;
+  }
+  if (!dateInput) {
+    await respond({ text: `Please provide a date in the format: today, tomorrow, 15-01-25, 2025-01-15, or 15/01/2025.\n${EXAMPLE}` });
     return;
   }
 
-  let airport = await airports.getAirportByCode(airportCode, 'iata');
-  if (!airport) {
-    airport = await airports.getAirportByCode(airportCode, 'icao');
+  if (!hourInput) {
+    await respond({ text: `Please provide an hour (0-23) for the flight.\n${EXAMPLE}` });
+    return;
   }
 
-  if (!airport || !airport.iata_code) {
+  const iataCode = await airports.changeAirportCode(airportCode, 'iata');
+  if (!iataCode) {
     await respond({
-      text: `Airport code "${airportCode}" not found. Please provide a valid IATA or ICAO airport code.`,
+      text: `Airport code "${airportCode}" not found. Please provide a valid airport code.`,
     });
     return;
   }
 
-  airportCode = airport.icao_code.toUpperCase();
+  let hour: number | undefined;
+  if (hourInput) {
+    const parsedHour = parseInt(hourInput);
+    if (isNaN(parsedHour) || parsedHour < 0 || parsedHour > 23) {
+      await respond({ text: 'Hour must be a number between 0 and 23.' });
+      return;
+    }
+    hour = parsedHour;
+  }
 
-  const { date, error } = parseDate(dateInput);
+  const { date, error } = parseDate(dateInput, true);
   if (error) {
     await respond({ text: `Invalid date format. ${error}` });
     return;
   }
 
   try {
-    const flights = await openSky.getAirportFlights(
-      airportCode,
-      'departure',
-      date!.begin,
-      date!.end
-    );
+    const response = await flightAware.getAirportFlights(iataCode, date?.begin, date?.end, undefined, hour);
+    Bun.write('flightawaretest.json', JSON.stringify(response, null, 2));
+
+    const flights = response.scheduled_departures;
 
     if (flights.length === 0) {
+      const timeInfo = hour !== undefined ? ` at hour ${hour}:00` : '';
       await respond({
-        text: `No flights found for ${airportCode} on ${formatDate(new Date(date!.begin * 1000))}`,
+        text: `No flights found for ${airportCode} on ${formatDate(new Date(date!.begin * 1000))}${timeInfo}`,
       });
       return;
     }
 
-    const CONCURRENCY_LIMIT = 20;
-    const flightOptions = [];
+    // Store flight request params for pagination
+    const requestParams = {
+      iataCode,
+      begin: date?.begin,
+      end: date?.end,
+      hour,
+      airportCode,
+      originalDate: date!.begin
+    };
 
-    for (let i = 0; i < Math.min(flights.length, 50); i += CONCURRENCY_LIMIT) {
-      const batch = flights.slice(i, i + CONCURRENCY_LIMIT);
-
-      const batchResults = await Promise.all(
-        batch.map(async (flight) => {
-          if (!flight.callsign) return null;
-
-          const now = performance.now();
-          try {
-            const { departure: hexDeparture, arrival: hexArrival } = await adsbDb
-              .getRoute(flight.callsign)
-              .catch(() => ({ departure: undefined, arrival: undefined }));
-
-            if (
-              (!hexDeparture || !hexArrival) &&
-              (!flight.estDepartureAirport || !flight.estArrivalAirport)
-            ) {
-              return null;
-            }
-
-            const departure =
-              hexDeparture ||
-              (await airports.changeAirportCode(flight.estDepartureAirport!, 'icao'));
-            const arrival =
-              hexArrival || (await airports.changeAirportCode(flight.estArrivalAirport!, 'icao'));
-
-            if (!departure || !arrival) {
-              console.warn(`Missing route for flight ${flight.callsign}`);
-              return null;
-            }
-
-            console.log(
-              `Route lookup took ${performance.now() - now}ms for flight ${flight.callsign}`
-            );
-
-            return {
-              text: {
-                type: 'plain_text' as const,
-                text: `${flight.callsign?.trim()} - ${departure} → ${arrival}`,
-              },
-              value: JSON.stringify({
-                callsign: flight.callsign,
-                icao24: flight.icao24,
-                departureAirport: flight.estDepartureAirport,
-                arrivalAirport: flight.estArrivalAirport,
-                firstSeen: flight.firstSeen,
-                lastSeen: flight.lastSeen,
-              }),
-            };
-          } catch (error) {
-            console.warn(`Error processing flight ${flight.callsign}:`, error);
-            return null;
-          }
-        })
-      );
-
-      flightOptions.push(...batchResults.filter((option) => option !== null));
-
-      // Small delay between batches to be nice to the API
-      if (i + CONCURRENCY_LIMIT < flights.length) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
-      }
-    }
-
-    await respond({
-      text: `Found ${flights.length} flights for ${airportCode} on ${formatDate(
-        new Date(date!.begin * 1000)
-      )}`,
-      blocks: [
-        {
-          type: 'section',
-          text: {
-            type: 'mrkdwn',
-            text: `*Found ${flights.length} flights for ${airportCode}* on ${formatDate(
-              new Date(date!.begin * 1000)
-            )}`,
-          },
-        },
-        {
-          type: 'section',
-          text: {
-            type: 'mrkdwn',
-            text: 'Choose a flight:',
-          },
-          accessory: {
-            type: 'static_select',
-            placeholder: {
-              type: 'plain_text',
-              text: 'Select a flight',
-            },
-            options: flightOptions,
-            action_id: 'flight_selection',
-          },
-        },
-      ],
-    });
+    await showFlightPage(respond, flights, requestParams, response.num_pages);
   } catch (error) {
     console.error('Error fetching flights:', error);
     await respond({ text: 'Error fetching flights. Check the airport code and try again!' });
   }
 });
+
+async function showFlightPage(
+  respond: any,
+  flights: ScheduledDeparture[],
+  requestParams: {
+    iataCode: string;
+    begin?: number;
+    end?: number;
+    hour?: number;
+    airportCode: string;
+    originalDate: number;
+  },
+  pages: number = 1
+) {
+  // Limit to first 100 options (Slack limit)
+  const limitedFlights = flights.slice(0, 100);
+  
+  const flightOptions = limitedFlights.map((flight) => {
+    const originIata = flight.origin.code_iata;
+    const destinationIata = flight.destination.code_iata;
+    const takeoffDate = new Date(flight.scheduled_off || flight.actual_runway_off || 0);
+
+    const displayText = `${flight.ident} (${takeoffDate.toLocaleTimeString('en-GB', {
+      hour: '2-digit',
+      minute: '2-digit',
+    })}) - ${originIata} → ${destinationIata}`;
+
+    return {
+      text: {
+        type: 'plain_text' as const,
+        text: displayText.substring(0, 75),
+      },
+      value: flight.ident_icao,
+    };
+  });
+
+  const blocks: any[] = [
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: `*Found flights for ${requestParams.airportCode}* on ${formatDate(
+          new Date(requestParams.originalDate * 1000)
+        )}${requestParams.hour !== undefined ? ` at hour ${requestParams.hour}:00` : ''}`,
+      },
+    },
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: 'Choose a flight:',
+      },
+      accessory: {
+        type: 'static_select',
+        placeholder: {
+          type: 'plain_text',
+          text: 'Select a flight',
+        },
+        options: flightOptions,
+        action_id: 'flight_selection',
+      },
+    },
+  ];
+
+  // Add next button if there are more pages
+  if (pages > 1) {
+    blocks.push({
+      type: 'actions',
+      elements: [
+        {
+          type: 'button',
+          text: {
+            type: 'plain_text',
+            text: 'Next →',
+          },
+          action_id: 'flight_page_next',
+          value: JSON.stringify({ ...requestParams }),
+        }
+      ],
+    });
+  }
+
+  await respond({
+    text: `Found flights for ${requestParams.airportCode} on ${formatDate(
+      new Date(requestParams.originalDate * 1000)
+    )}`,
+    blocks,
+  });
+}
 
 app.action('flight_selection', async ({ body, ack, respond }) => {
   await ack();
@@ -182,19 +200,53 @@ app.action('flight_selection', async ({ body, ack, respond }) => {
       return;
     }
 
-    const flightData = JSON.parse(selectedValue);
+    const fa_flight_id = selectedValue;
 
-    // save to database for tracking
-
+    // We no longer have cached flight data, so we need to fetch flight details separately
+    // For now, just confirm the selection with the flight ID
     await respond({
-      text: `✅ Added flight ${flightData.callsign || 'Unknown'} from ${
-        flightData.departureAirport
-      } to ${flightData.arrivalAirport} to your tracking list!`,
+      text: `✅ Added flight ${fa_flight_id} to your tracking list!`,
       replace_original: true,
     });
   } catch (error) {
     console.error('Error handling flight selection:', error);
     await respond({ text: 'Error adding flight to tracking. Please try again.' });
+  }
+});
+
+app.action('flight_page_next', async ({ body, ack, respond }) => {
+  await ack();
+
+  try {
+    const value =
+      'actions' in body && body.actions?.[0] && 'value' in body.actions[0]
+        ? body.actions[0].value
+        : undefined;
+    if (!value) return;
+
+    const { cursor, iataCode, begin, end, hour, airportCode, originalDate } = JSON.parse(value as string);
+
+    const response = await flightAware.getAirportFlights(iataCode, begin, end, cursor, hour);
+    const flights = response.scheduled_departures;
+
+    if (flights.length === 0) {
+      await respond({ text: 'No more flights found.' });
+      return;
+    }
+
+    const requestParams = {
+      iataCode,
+      begin,
+      end,
+      hour,
+      airportCode,
+      originalDate
+    };
+
+    await showFlightPage(respond, flights, requestParams, response.num_pages);
+  } catch (error) {
+    console.error('Error handling pagination:', error);
+    await respond({ text: 'Error loading page. Please try again.' });
   }
 });
 

@@ -1,5 +1,4 @@
 import ky from 'ky';
-import { Airports } from './airports';
 
 export class AdsBDB {
   public async getRoute(icao24: string) {
