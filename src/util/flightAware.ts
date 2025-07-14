@@ -46,6 +46,21 @@ export class FlightAware {
       }
     }).json<ScheduledDeparturesResponse>();
   }
+  public async getFlightInfo(flightId: string): Promise<FlightsData> {
+    const apiKey = process.env.FLIGHTAWARE;
+    if (!apiKey) {
+      throw new Error('FLIGHTAWARE environment variable is required');
+    }
+
+    const url = `https://aeroapi.flightaware.com/aeroapi/flights/${flightId}`;
+    return ky.get(url, {
+      headers: {
+        'Accept': 'application/json; charset=UTF-8',
+        'User-Agent': 'flight-slack/1.0',
+        'x-apikey': apiKey,
+      }
+    }).json<FlightsData>();
+  }
 }
 
 interface Airport {
@@ -119,5 +134,85 @@ export interface ScheduledDeparturesResponse {
   links: {
     next?: string;
   } | null;
+  num_pages: number;
+}
+
+export interface Flight {
+  ident: string;
+  ident_icao: string;
+  ident_iata: string;
+  actual_runway_off: string;
+  actual_runway_on: string;
+  fa_flight_id: string;
+  operator: string;
+  operator_icao: string;
+  operator_iata: string;
+  flight_number: string;
+  registration: string;
+  atc_ident: string;
+  inbound_fa_flight_id: string;
+  codeshares: any[];
+  codeshares_iata: any[];
+  blocked: boolean;
+  diverted: boolean;
+  cancelled: boolean;
+  position_only: boolean;
+  origin: {
+    code: string;
+    code_icao: string;
+    code_iata: string;
+    code_lid: null;
+    timezone: string;
+    name: string;
+    city: string;
+    airport_info_url: string;
+  };
+  destination: {
+    code: string;
+    code_icao: string;
+    code_iata: string;
+    code_lid: null;
+    timezone: string;
+    name: string;
+    city: string;
+    airport_info_url: string;
+  };
+  departure_delay: number;
+  arrival_delay: number;
+  filed_ete: number;
+  foresight_predictions_available: boolean;
+  scheduled_out: string;
+  estimated_out: string;
+  actual_out: string;
+  scheduled_off: string;
+  estimated_off: string;
+  actual_off: string;
+  scheduled_on: string;
+  estimated_on: string;
+  actual_on: string;
+  scheduled_in: string;
+  estimated_in: string;
+  actual_in: null;
+  progress_percent: number;
+  status: string;
+  aircraft_type: string;
+  route_distance: number;
+  filed_airspeed: number;
+  filed_altitude: null;
+  route: null;
+  baggage_claim: null;
+  seats_cabin_business: null;
+  seats_cabin_coach: null;
+  seats_cabin_first: null;
+  gate_origin: string;
+  gate_destination: null;
+  terminal_origin: null;
+  terminal_destination: string;
+  type: string;
+}
+
+export interface FlightsData {
+  flights: Flight[];
+  links: null;
   num_pages: number;
 }

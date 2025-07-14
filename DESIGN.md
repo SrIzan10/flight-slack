@@ -35,7 +35,7 @@ A Slack bot that allows users to track their flights and automatically posts upd
 
 ## Data Models
 
-### Usere airport coordinate data to determine proxim
+### User
 - `id`: Unique identifier
 - `slack_user_id`: Slack user ID
 - `slack_channel_id`: User's personal channel ID

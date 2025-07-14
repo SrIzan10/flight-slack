@@ -21,7 +21,7 @@ export const flightAware = new FlightAware();
 export const adsbDb = new AdsBDB();
 
 app.command('/flight-add', async ({ command, ack, respond }) => {
-  const EXAMPLE = `_Example: \`/flight-add AGP today 11\` looks for flights from AGP today at 11:00 (24-hour)._`;
+  const EXAMPLE = `_Example: \`/flight-add AGP today 11\` looks for flights from AGP today at 11:00 (24-hour UTC)._`;
   await ack();
 
   const parts = command.text.split(' ');
@@ -71,7 +71,7 @@ app.command('/flight-add', async ({ command, ack, respond }) => {
     const flights = response.scheduled_departures;
 
     if (flights.length === 0) {
-      const timeInfo = hour !== undefined ? ` at hour ${hour}:00` : '';
+      const timeInfo = hour !== undefined ? ` at hour ${hour}:00 UTC` : '';
       await respond({
         text: `No flights found for ${airportCode} on ${formatDate(new Date(date!.begin * 1000))}${timeInfo}`,
       });
@@ -126,7 +126,7 @@ async function showFlightPage(
         type: 'plain_text' as const,
         text: displayText.substring(0, 75),
       },
-      value: flight.ident_icao,
+      value: flight.fa_flight_id,
     };
   });
 
@@ -177,7 +177,7 @@ async function showFlightPage(
   }
 
   await respond({
-    text: `Found flights for ${requestParams.airportCode} on ${formatDate(
+    text: `Found ${flights.length} flights for ${requestParams.airportCode} on ${formatDate(
       new Date(requestParams.originalDate * 1000)
     )}`,
     blocks,
@@ -201,9 +201,57 @@ app.action('flight_selection', async ({ body, ack, respond }) => {
 
     const callsign = selectedValue;
 
+    const flight = await flightAware.getFlightInfo(callsign);
+    const flightData = flight.flights[0]!;
+    await db.flight.create({
+      data: {
+        userId: body.user.id,
+        faFlightId: flightData.fa_flight_id,
+        ident: flightData.ident,
+        identIcao: flightData.ident_icao,
+        identIata: flightData.ident_iata,
+        registration: flightData.registration,
+        aircraftType: flightData.aircraft_type,
+        originIcao: flightData.origin.code_icao,
+        originIata: flightData.origin.code_iata,
+        originName: flightData.origin.name,
+        originCity: flightData.origin.city,
+        destinationIcao: flightData.destination.code_icao,
+        destinationIata: flightData.destination.code_iata,
+        destinationName: flightData.destination.name,
+        destinationCity: flightData.destination.city,
+        scheduledOut: flightData.scheduled_out,
+        scheduledOff: flightData.scheduled_off,
+        scheduledOn: flightData.scheduled_on,
+        scheduledIn: flightData.scheduled_in,
+        estimatedOut: flightData.estimated_out,
+        estimatedOff: flightData.estimated_off,
+        estimatedOn: flightData.estimated_on,
+        estimatedIn: flightData.estimated_in,
+        actualOut: flightData.actual_out,
+        actualOff: flightData.actual_off,
+        actualOn: flightData.actual_on,
+        actualIn: flightData.actual_in,
+        status: flightData.status,
+        departureDelay: flightData.departure_delay,
+        arrivalDelay: flightData.arrival_delay,
+        cancelled: flightData.cancelled,
+        diverted: flightData.diverted,
+        progressPercent: flightData.progress_percent,
+        gateOrigin: flightData.gate_origin,
+        gateDestination: flightData.gate_destination,
+        terminalOrigin: flightData.terminal_origin,
+        terminalDestination: flightData.terminal_destination,
+      }
+    });
+
     await respond({
-      text: `✅ Added flight ${callsign} to your tracking list!`,
+      text: `✅ Now tracking \`${callsign}\` in this channel!`,
       replace_original: true,
+    });
+    await app.client.chat.postMessage({
+      channel: body.user.id,
+      text: `Flight \`${callsign}\` is now being tracked inside this channel!`,
     });
   } catch (error) {
     console.error('Error handling flight selection:', error);
