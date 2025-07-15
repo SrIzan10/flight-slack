@@ -99,10 +99,10 @@ export interface ScheduledDeparture {
   departure_delay: number | null;
   arrival_delay: number | null;
   filed_ete: number;
-  scheduled_out: string;
+  scheduled_out?: string;
   estimated_out: string | null;
   actual_out: string | null;
-  scheduled_off: string;
+  scheduled_off?: string;
   estimated_off: string | null;
   actual_off: string | null;
   scheduled_on: string;

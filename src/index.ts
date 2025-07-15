@@ -6,8 +6,9 @@ import { FlightAware, type ScheduledDeparture } from './util/flightAware';
 import { parseDate, formatDate } from './util/dates';
 import { Airports } from './util/airports';
 import { AdsBDB } from './util/adsbdb';
+import { FlightUpdater } from './util/flightUpdater';
 
-const app = new App({
+export const app = new App({
   token: process.env.SLACK_BOT_TOKEN,
   socketMode: true,
   appToken: process.env.SLACK_APP_TOKEN,
@@ -19,10 +20,19 @@ export const cache = new BunCache();
 export const openSky = new OpenskyService();
 export const flightAware = new FlightAware();
 export const adsbDb = new AdsBDB();
+export const flightUpdater = new FlightUpdater();
 
 app.command('/flight-add', async ({ command, ack, respond }) => {
   const EXAMPLE = `_Example: \`/flight-add AGP today 11\` looks for flights from AGP today at 11:00 (24-hour UTC)._`;
   await ack();
+
+  if (!command.channel_id || (!command.channel_id.startsWith('C') && !command.channel_id.startsWith('G'))) {
+    await respond({ 
+      text: '❌ This command can only be used in channels.',
+      response_type: 'ephemeral'
+    });
+    return;
+  }
 
   const parts = command.text.split(' ');
   let [airportCode, dateInput, hourInput] = parts;
@@ -206,6 +216,7 @@ app.action('flight_selection', async ({ body, ack, respond }) => {
     await db.flight.create({
       data: {
         userId: body.user.id,
+        channelId: body.channel?.id!,
         faFlightId: flightData.fa_flight_id,
         ident: flightData.ident,
         identIcao: flightData.ident_icao,
@@ -250,7 +261,7 @@ app.action('flight_selection', async ({ body, ack, respond }) => {
       replace_original: true,
     });
     await app.client.chat.postMessage({
-      channel: body.user.id,
+      channel: body.channel?.id!,
       text: `Flight \`${callsign}\` is now being tracked inside this channel!`,
     });
   } catch (error) {
@@ -296,4 +307,5 @@ app.action('flight_page_next', async ({ body, ack, respond }) => {
 });
 
 await app.start();
+flightUpdater.start();
 console.log("We're up and running :)");
