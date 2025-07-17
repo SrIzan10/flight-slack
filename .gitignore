@@ -36,3 +36,5 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 *.sqlite
 /src/generated/prisma
 flightawaretest.json
+NOTES.md
+accounts.json

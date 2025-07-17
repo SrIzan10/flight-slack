@@ -11,66 +11,77 @@ datasource db {
 }
 
 model Flight {
-  id                String   @id @default(cuid())
-  userId            String
-  channelId         String
-  
+  id        String @id @default(cuid())
+  userId    String
+  channelId String
+
   // identifiers
-  faFlightId        String   @unique // fa_flight_id
-  ident             String   // flight number
-  identIcao         String   // ICAO ident
-  identIata         String?  // IATA ident (can be null)
-  
+  faFlightId String  @unique // fa_flight_id
+  ident      String // flight number
+  identIcao  String // ICAO ident
+  identIata  String? // IATA ident (can be null)
+
   // aircraft info
-  registration      String?  // tail number
-  aircraftType      String?  // e.g., "A320"
-  
+  registration String? // tail number
+  aircraftType String? // e.g., "A320"
+
   // route info
-  originIcao        String   // icao code (lemg)
-  originIata        String   // iata code (agp)
-  originName        String   // airport name
-  originCity        String   // city name
-  
-  destinationIcao   String   // icao code
-  destinationIata   String   // iata code
-  destinationName   String   // airport name
-  destinationCity   String   // city name
-  
+  originIcao String // icao code (lemg)
+  originIata String // iata code (agp)
+  originName String // airport name
+  originCity String // city name
+
+  destinationIcao String // icao code
+  destinationIata String // iata code
+  destinationName String // airport name
+  destinationCity String // city name
+
   // timing (stored in iso 8601 format on the api)
-  scheduledOut      DateTime?
-  scheduledOff      DateTime // takeoff time
-  scheduledOn       DateTime // landing time
-  scheduledIn       DateTime?
-  
-  estimatedOut      DateTime?
-  estimatedOff      DateTime?
-  estimatedOn       DateTime?
-  estimatedIn       DateTime?
-  
-  actualOut         DateTime?
-  actualOff         DateTime?
-  actualOn          DateTime?
-  actualIn          DateTime?
-  
+  scheduledOut DateTime?
+  scheduledOff DateTime // takeoff time
+  scheduledOn  DateTime // landing time
+  scheduledIn  DateTime?
+
+  estimatedOut DateTime?
+  estimatedOff DateTime?
+  estimatedOn  DateTime?
+  estimatedIn  DateTime?
+
+  actualOut DateTime?
+  actualOff DateTime?
+  actualOn  DateTime?
+  actualIn  DateTime?
+
   // status and delays
-  status            String   // "Scheduled", "Delayed", etc.
-  departureDelay    Int?     // minutes
-  arrivalDelay      Int?     // minutes
-  cancelled         Boolean  @default(false)
-  diverted          Boolean  @default(false)
-  
+  status         String // "Scheduled", "Delayed", etc.
+  departureDelay Int? // minutes
+  arrivalDelay   Int? // minutes
+  cancelled      Boolean @default(false)
+  diverted       Boolean @default(false)
+
   //  more useful info
-  progressPercent   Int?     // 0-100
-  gateOrigin        String?
-  gateDestination   String?
-  terminalOrigin    String?
+  progressPercent     Int? // 0-100
+  gateOrigin          String?
+  gateDestination     String?
+  terminalOrigin      String?
   terminalDestination String?
-  
+
   // metadata
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([userId])
   @@index([faFlightId])
   @@index([scheduledOff])
+}
+
+model AsAccount {
+  email    String @id @unique
+  password String
+  key      String
+  usage    Int    @default(0)
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastResetDate DateTime?
 }

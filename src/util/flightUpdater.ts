@@ -117,52 +117,56 @@ export class FlightUpdater {
   private async updateSingleFlight(flight: Flight) {
     console.log(`updating flight ${flight.ident} (${flight.id})`);
     try {
-      if (flight.actualIn) {
+      const currentFlight = await db.flight.findUnique({
+        where: { id: flight.id }
+      });
+      
+      if (!currentFlight || currentFlight.actualIn) {
         this.removeFlightPolling(flight.id);
         return;
       }
 
-      const flightInfo = await flightAware.getFlightInfo(flight.faFlightId);
+      const flightInfo = await flightAware.getFlightInfo(currentFlight.faFlightId);
       const newData = flightInfo.flights[0];
       
       if (!newData) return;
 
       const changes = [];
       
-      if (flight.status !== newData.status) {
+      if (currentFlight.status !== newData.status) {
         changes.push(`Status: ${newData.status}`);
       }
       
-      if (Math.abs((flight.departureDelay || 0) - (newData.departure_delay || 0)) > 10) {
+      if (Math.abs((currentFlight.departureDelay || 0) - (newData.departure_delay || 0)) > 10) {
         changes.push(`Departure delay: ${newData.departure_delay || 0} minutes`);
       }
       
-      if (flight.gateOrigin !== newData.gate_origin && newData.gate_origin) {
+      if (currentFlight.gateOrigin !== newData.gate_origin && newData.gate_origin) {
         changes.push(`Gate changed to: ${newData.gate_origin}`);
       }
       
-      if (!flight.actualOff && newData.actual_off) {
+      if (!currentFlight.actualOff && newData.actual_off) {
         changes.push('✈️ Flight has taken off!');
         this.adjustFlightPolling(flight.id, flight);
       }
       
-      if (!flight.actualOn && newData.actual_on) {
+      if (!currentFlight.actualOn && newData.actual_on) {
         changes.push('🛬 Flight has landed!');
         this.removeFlightPolling(flight.id);
       }
       
-      if (!flight.cancelled && newData.cancelled) {
+      if (!currentFlight.cancelled && newData.cancelled) {
         changes.push('❌ Flight cancelled');
         this.removeFlightPolling(flight.id);
       }
 
-      if (!flight.diverted && newData.diverted) {
+      if (!currentFlight.diverted && newData.diverted) {
         changes.push(`🚨 Flight diverted to ${newData.destination.code_iata} (${newData.destination.name})`);
       }
 
-      // smart progress updates (0 - 10, 10 - 20, etc.)
-      if (flight.progressPercent !== null && newData.progress_percent !== null && newData.actual_off && !newData.actual_on) {
-        const oldTens = Math.floor((flight.progressPercent || 0) / 10);
+      // 10 multiple updates (0 - 10, 10 - 20, etc.)
+      if (currentFlight.progressPercent !== null && newData.progress_percent !== null && newData.actual_off && !newData.actual_on) {
+        const oldTens = Math.floor((currentFlight.progressPercent || 0) / 10);
         const newTens = Math.floor(newData.progress_percent / 10);
         
         if (oldTens !== newTens && newData.progress_percent !== 100) {
@@ -193,10 +197,10 @@ export class FlightUpdater {
       }
 
       if (changes.length > 0) {
-        const message = `🔔 *${flight.ident}* (${flight.originIata} → ${flight.destinationIata})\n${changes.join('\n')}`;
+        const message = `🔔 *${currentFlight.ident}* (${currentFlight.originIata} → ${currentFlight.destinationIata})\n${changes.join('\n')}`;
         
         await app.client.chat.postMessage({
-          channel: flight.channelId,
+          channel: currentFlight.channelId,
           text: message
         });
       }
@@ -209,21 +213,17 @@ export class FlightUpdater {
   }
 
   private adjustFlightPolling(flightId: string, flight: Flight, isError: boolean = false) {
-    // clear current interval
     const existingInterval = this.flightIntervals.get(flightId);
     if (existingInterval) {
       clearInterval(existingInterval);
     }
 
-    // calculate interval
     let newInterval = this.calculatePollInterval(flight);
     
-    // increase interval in case of errors
     if (isError) {
       newInterval *= 2;
     }
 
-    // update interval
     const interval = setInterval(() => this.updateSingleFlight(flight), newInterval);
     this.flightIntervals.set(flightId, interval);
   }

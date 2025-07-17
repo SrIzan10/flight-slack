@@ -3,6 +3,10 @@
   "module": "src/index.ts",
   "type": "module",
   "private": true,
+  "scripts": {
+    "dev": "bun --watch .",
+    "importAccs": "bun run src/importAccounts.ts"
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },
