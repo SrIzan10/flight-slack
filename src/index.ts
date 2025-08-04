@@ -26,23 +26,43 @@ app.command('/flight-add', async ({ command, ack, respond }) => {
   const EXAMPLE = `_Example: \`/flight-add AGP today 11\` looks for flights from AGP today at 11:00 (24-hour UTC)._`;
   await ack();
 
-  if (!command.channel_id || (!command.channel_id.startsWith('C') && !command.channel_id.startsWith('G'))) {
-    await respond({ 
+  if (
+    !command.channel_id ||
+    (!command.channel_id.startsWith('C') && !command.channel_id.startsWith('G'))
+  ) {
+    await respond({
       text: '❌ This command can only be used in channels.',
-      response_type: 'ephemeral'
+      response_type: 'ephemeral',
+    });
+    return;
+  }
+
+  try {
+    await app.client.conversations.join({
+      channel: command.channel_id,
+    });
+    await app.client.conversations.info({
+      channel: command.channel_id,
+    });
+  } catch (error) {
+    await respond({
+      text: `❌ I can't access this channel. If it's private, please invite the app first.\nHere's your command again: ${command.command} ${command.text}`,
+      response_type: 'ephemeral',
     });
     return;
   }
 
   const parts = command.text.split(' ');
   let [airportCode, dateInput, hourInput] = parts;
-  
+
   if (!airportCode || airportCode.length !== 3) {
     await respond({ text: `Please provide a valid 3 character airport code.\n${EXAMPLE}` });
     return;
   }
   if (!dateInput) {
-    await respond({ text: `Please provide a date in the format: today, tomorrow, 15-01-25, 2025-01-15, or 15/01/2025.\n${EXAMPLE}` });
+    await respond({
+      text: `Please provide a date in the format: today, tomorrow, 15-01-25, 2025-01-15, or 15/01/2025.\n${EXAMPLE}`,
+    });
     return;
   }
 
@@ -76,26 +96,33 @@ app.command('/flight-add', async ({ command, ack, respond }) => {
   }
 
   try {
-    const response = await flightAware.getAirportFlights(iataCode, date?.begin, date?.end, undefined, hour);
+    const response = await flightAware.getAirportFlights(
+      iataCode,
+      date?.begin,
+      date?.end,
+      undefined,
+      hour
+    );
 
     const flights = response.scheduled_departures;
 
     if (flights.length === 0) {
       const timeInfo = hour !== undefined ? ` at hour ${hour}:00 UTC` : '';
       await respond({
-        text: `No flights found for ${airportCode} on ${formatDate(new Date(date!.begin * 1000))}${timeInfo}`,
+        text: `No flights found for ${airportCode} on ${formatDate(
+          new Date(date!.begin * 1000)
+        )}${timeInfo}`,
       });
       return;
     }
 
-    // Store flight request params for pagination
     const requestParams = {
       iataCode,
       begin: date?.begin,
       end: date?.end,
       hour,
       airportCode,
-      originalDate: date!.begin
+      originalDate: date!.begin,
     };
 
     await showFlightPage(respond, flights, requestParams, response.num_pages);
@@ -118,9 +145,8 @@ async function showFlightPage(
   },
   pages: number = 1
 ) {
-  // Limit to first 100 options (Slack limit)
   const limitedFlights = flights.slice(0, 100);
-  
+
   const flightOptions = limitedFlights.map((flight) => {
     const originIata = flight.origin.code_iata;
     const destinationIata = flight.destination.code_iata;
@@ -168,7 +194,6 @@ async function showFlightPage(
     },
   ];
 
-  // Add next button if there are more pages
   if (pages > 1) {
     blocks.push({
       type: 'actions',
@@ -181,7 +206,7 @@ async function showFlightPage(
           },
           action_id: 'flight_page_next',
           value: JSON.stringify({ ...requestParams }),
-        }
+        },
       ],
     });
   }
@@ -253,7 +278,7 @@ app.action('flight_selection', async ({ body, ack, respond }) => {
         gateDestination: flightData.gate_destination,
         terminalOrigin: flightData.terminal_origin,
         terminalDestination: flightData.terminal_destination,
-      }
+      },
     });
 
     await respond({
@@ -280,7 +305,9 @@ app.action('flight_page_next', async ({ body, ack, respond }) => {
         : undefined;
     if (!value) return;
 
-    const { cursor, iataCode, begin, end, hour, airportCode, originalDate } = JSON.parse(value as string);
+    const { cursor, iataCode, begin, end, hour, airportCode, originalDate } = JSON.parse(
+      value as string
+    );
 
     const response = await flightAware.getAirportFlights(iataCode, begin, end, cursor, hour);
     const flights = response.scheduled_departures;
@@ -296,7 +323,7 @@ app.action('flight_page_next', async ({ body, ack, respond }) => {
       end,
       hour,
       airportCode,
-      originalDate
+      originalDate,
     };
 
     await showFlightPage(respond, flights, requestParams, response.num_pages);
