@@ -7,6 +7,7 @@ import { parseDate, formatDate } from './util/dates';
 import { Airports } from './util/airports';
 import { AdsBDB } from './util/adsbdb';
 import { FlightUpdater } from './util/flightUpdater';
+import { largestMortalsId } from './util/largestMortalsId';
 
 export const app = new App({
   token: process.env.SLACK_BOT_TOKEN,
@@ -243,6 +244,7 @@ app.action('flight_selection', async ({ body, ack, respond }) => {
         userId: body.user.id,
         channelId: body.channel?.id!,
         faFlightId: flightData.fa_flight_id,
+        mortalsId: await largestMortalsId(true),
         ident: flightData.ident,
         identIcao: flightData.ident_icao,
         identIata: flightData.ident_iata,

@@ -17,6 +17,7 @@ model Flight {
 
   // identifiers
   faFlightId String  @unique // fa_flight_id
+  mortalsId  Int     @unique // incremental id for mortals
   ident      String // flight number
   identIcao  String // ICAO ident
   identIata  String? // IATA ident (can be null)

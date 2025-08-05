@@ -8,7 +8,8 @@
     "importAccs": "bun run src/importAccounts.ts"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "prisma": "^6.13.0"
   },
   "peerDependencies": {
     "typescript": "^5"
