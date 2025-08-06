@@ -120,7 +120,6 @@ app.command('/flight-add', async ({ command, ack, respond }) => {
     
     if (flights.length === 0) {
       const timezone = await airports.getTimezone(iataCode, 'iata');
-      console.log(timezone)
       const timeInfo = hour !== undefined ? ` at hour ${hour}:00 ${timezone}` : '';
       await respond({
         text: `No flights found for ${airportCode} on ${formatDate(
@@ -203,11 +202,9 @@ async function showFlightPage(
   pages: number = 1
 ) {
   const limitedFlights = flights.slice(0, 100);
-  console.log(requestParams.iataCode)
   const airportTz = await airports.getTimezone(requestParams.iataCode, 'icao');
 
   const flightOptions = limitedFlights.map((flight) => {
-    console.log(flight)
     const originIata = flight.origin?.code_iata;
     const destinationIata = flight.destination?.code_iata;
     
