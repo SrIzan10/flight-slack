@@ -1,6 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { App } from '@slack/bolt';
-import { OpenskyService } from './util/opensky';
+//import { OpenskyService } from './util/opensky.disabled';
 import { FlightAware, type ScheduledDeparture } from './util/flightAware';
 import { parseDate, formatDate } from './util/dates';
 import { Airports } from './util/airports';
@@ -17,7 +17,7 @@ export const app = new App({
 
 export const db = new PrismaClient();
 export const airports = new Airports();
-export const openSky = new OpenskyService();
+//export const openSky = new OpenskyService();
 export const flightAware = new FlightAware();
 export const adsbDb = new AdsBDB();
 export const flightUpdater = new FlightUpdater();
