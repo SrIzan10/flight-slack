@@ -1,3 +1,4 @@
+// range in seconds unix timestamp
 export function getRange(date?: Date, days = 1): { begin: number; end: number } {
   const startDate = date ? new Date(date) : new Date();
   const begin = Math.floor(startDate.setHours(0, 0, 0, 0) / 1000);
@@ -120,12 +121,13 @@ function parseNaturalDate(input: string): Date | null {
   
   return null;
 }
+// AI GENERATED CODE ENDS HERE
 
-export function formatDate(date: Date): string {
+export function formatDate(date: Date, tz = 'Etc/UTC'): string {
   return date.toLocaleDateString('en-GB', {
     year: 'numeric',
     month: '2-digit',
-    day: '2-digit'
+    day: '2-digit',
+    timeZone: tz,
   });
 }
-// AI GENERATED CODE ENDS HERE

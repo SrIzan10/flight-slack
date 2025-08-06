@@ -25,7 +25,7 @@ export const adsbDb = new AdsBDB();
 export const flightUpdater = new FlightUpdater();
 
 app.command('/flight-add', async ({ command, ack, respond }) => {
-  const EXAMPLE = `_Example: \`/flight-add AGP today 11\` looks for flights from AGP today at 11:00 (24-hour UTC)._`;
+  const EXAMPLE = `_Example: \`/flight-add AGP today 11\` looks for flights from AGP today at 11:00 (military time)._`;
   await ack();
 
   if (!await isInvited(command.user_id)) {
@@ -35,7 +35,7 @@ app.command('/flight-add', async ({ command, ack, respond }) => {
     });
     return;
   }
-  
+
   if (
     !command.channel_id ||
     (!command.channel_id.startsWith('C') && !command.channel_id.startsWith('G'))
@@ -48,18 +48,21 @@ app.command('/flight-add', async ({ command, ack, respond }) => {
   }
 
   try {
-    await app.client.conversations.join({
-      channel: command.channel_id,
-    });
     await app.client.conversations.info({
       channel: command.channel_id,
     });
   } catch (error) {
-    await respond({
-      text: `❌ I can't access this channel. If it's private, please invite the app first.\nHere's your command again: ${command.command} ${command.text}`,
-      response_type: 'ephemeral',
-    });
-    return;
+    try {
+      await app.client.conversations.join({
+        channel: command.channel_id,
+      });
+    } catch (joinError) {
+      await respond({
+        text: `❌ I can't access this channel. If it's private, please invite the app first.\nHere's your command again: ${command.command} ${command.text}`,
+        response_type: 'ephemeral',
+      });
+      return;
+    }
   }
 
   const parts = command.text.split(' ');
@@ -110,17 +113,19 @@ app.command('/flight-add', async ({ command, ack, respond }) => {
       iataCode,
       date?.begin,
       date?.end,
-      undefined,
       hour
     );
-
+    
     const flights = response.scheduled_departures;
-
+    
     if (flights.length === 0) {
-      const timeInfo = hour !== undefined ? ` at hour ${hour}:00 UTC` : '';
+      const timezone = await airports.getTimezone(iataCode, 'iata');
+      console.log(timezone)
+      const timeInfo = hour !== undefined ? ` at hour ${hour}:00 ${timezone}` : '';
       await respond({
         text: `No flights found for ${airportCode} on ${formatDate(
-          new Date(date!.begin * 1000)
+          new Date(date!.begin * 1000),
+          timezone
         )}${timeInfo}`,
       });
       return;
@@ -198,15 +203,23 @@ async function showFlightPage(
   pages: number = 1
 ) {
   const limitedFlights = flights.slice(0, 100);
+  console.log(requestParams.iataCode)
+  const airportTz = await airports.getTimezone(requestParams.iataCode, 'icao');
 
   const flightOptions = limitedFlights.map((flight) => {
-    const originIata = flight.origin.code_iata;
-    const destinationIata = flight.destination.code_iata;
-    const takeoffDate = new Date(flight.scheduled_off || flight.actual_runway_off || 0);
+    console.log(flight)
+    const originIata = flight.origin?.code_iata;
+    const destinationIata = flight.destination?.code_iata;
+    
+    if (!originIata || !destinationIata) {
+      return null;
+    }
+    const takeoffDate = new Date(flight.scheduled_off || 0);
 
     const displayText = `${flight.ident} (${takeoffDate.toLocaleTimeString('en-GB', {
       hour: '2-digit',
       minute: '2-digit',
+      timeZone: airportTz
     })}) - ${originIata} → ${destinationIata}`;
 
     return {
@@ -216,7 +229,7 @@ async function showFlightPage(
       },
       value: flight.fa_flight_id,
     };
-  });
+  }).filter(f => f !== null);
 
   const blocks: any[] = [
     {
@@ -362,7 +375,7 @@ app.action('flight_page_next', async ({ body, ack, respond }) => {
       value as string
     );
 
-    const response = await flightAware.getAirportFlights(iataCode, begin, end, cursor, hour);
+    const response = await flightAware.getAirportFlights(iataCode, begin, end, hour, cursor);
     const flights = response.scheduled_departures;
 
     if (flights.length === 0) {

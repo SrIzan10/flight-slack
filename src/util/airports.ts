@@ -1,4 +1,5 @@
 import { Database } from 'bun:sqlite';
+import { find } from 'geo-tz';
 
 export class Airports {
   constructor() {
@@ -20,6 +21,15 @@ export class Airports {
 
     // console.log(`Airport lookup took ${performance.now() - now}ms`);
     return type === 'icao' ? res.iata_code : res.icao_code;
+  }
+  public async getTimezone(code: string, type: 'icao' | 'iata') {
+    const airport = await this.getAirportByCode(code, type);
+    if (!airport) {
+      throw new Error('Airport not found (getTimezone)')
+    }
+    const latitude = parseFloat(airport.latitude_deg);
+    const longitude = parseFloat(airport.longitude_deg);
+    return find(latitude, longitude)[0] || 'Etc/UTC';
   }
 }
 

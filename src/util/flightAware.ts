@@ -1,12 +1,18 @@
 import ky from 'ky';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
+import { airports } from '..';
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 export class FlightAware {
   public async getAirportFlights(
-    airportIcao: string, 
-    begin?: number, 
-    end?: number, 
+    airportIcao: string,
+    begin?: number,
+    end?: number,
+    hour?: number,
     cursor?: string,
-    hour?: number
   ): Promise<ScheduledDeparturesResponse> {
     const apiKey = process.env.FLIGHTAWARE;
     if (!apiKey) {
@@ -20,16 +26,20 @@ export class FlightAware {
     };
 
     if (begin) {
-      const startDate = new Date(begin * 1000);
+      const airportTimezone = await airports.getTimezone(airportIcao, 'icao');
+      let startDate = dayjs.unix(begin).tz(airportTimezone);
+      
       if (hour !== undefined) {
-        startDate.setHours(hour, 0, 0, 0);
+        startDate = startDate.hour(hour).minute(0).second(0);
       }
       searchParams.start = startDate.toISOString();
     }
     if (end) {
-      const endDate = new Date(end * 1000);
+      const airportTimezone = await airports.getTimezone(airportIcao, 'icao');
+      let endDate = dayjs.unix(end).tz(airportTimezone);
+      
       if (hour !== undefined) {
-        endDate.setHours(hour + 1, 0, 0, 0);
+        endDate = endDate.hour(hour + 1).minute(0).second(0);
       }
       searchParams.end = endDate.toISOString();
     }
