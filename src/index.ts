@@ -135,6 +135,7 @@ app.command('/flight-add', async ({ command, ack, respond }) => {
       hour,
       airportCode,
       originalDate: date!.begin,
+      nextCursor: response.links?.next,
     };
 
     await showFlightPage(respond, flights, requestParams, response.num_pages);
@@ -196,6 +197,7 @@ async function showFlightPage(
     hour?: number;
     airportCode: string;
     originalDate: number;
+    nextCursor?: string;
   },
   pages: number = 1
 ) {
@@ -254,7 +256,7 @@ async function showFlightPage(
     },
   ];
 
-  if (pages > 1) {
+  if (requestParams.nextCursor) {
     blocks.push({
       type: 'actions',
       elements: [
@@ -366,9 +368,20 @@ app.action('flight_page_next', async ({ body, ack, respond }) => {
         : undefined;
     if (!value) return;
 
-    const { cursor, iataCode, begin, end, hour, airportCode, originalDate } = JSON.parse(
+    const { nextCursor, iataCode, begin, end, hour, airportCode, originalDate } = JSON.parse(
       value as string
     );
+
+    // Extract cursor from the next URL
+    let cursor: string | undefined;
+    if (nextCursor) {
+      try {
+        const url = new URL(nextCursor, 'https://aeroapi.flightaware.com');
+        cursor = url.searchParams.get('cursor') || undefined;
+      } catch (e) {
+        console.error('Error parsing next cursor URL:', e);
+      }
+    }
 
     const response = await flightAware.getAirportFlights(iataCode, begin, end, hour, cursor);
     const flights = response.scheduled_departures;
@@ -385,6 +398,7 @@ app.action('flight_page_next', async ({ body, ack, respond }) => {
       hour,
       airportCode,
       originalDate,
+      nextCursor: response.links?.next,
     };
 
     await showFlightPage(respond, flights, requestParams, response.num_pages);
