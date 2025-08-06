@@ -8,6 +8,7 @@ import { Airports } from './util/airports';
 import { AdsBDB } from './util/adsbdb';
 import { FlightUpdater } from './util/flightUpdater';
 import { largestMortalsId } from './util/largestMortalsId';
+import { isInvited } from './util/isInvited';
 
 export const app = new App({
   token: process.env.SLACK_BOT_TOKEN,
@@ -27,6 +28,14 @@ app.command('/flight-add', async ({ command, ack, respond }) => {
   const EXAMPLE = `_Example: \`/flight-add AGP today 11\` looks for flights from AGP today at 11:00 (24-hour UTC)._`;
   await ack();
 
+  if (!await isInvited(command.user_id)) {
+    await respond({
+      text: '❌ You are not invited to use this command.',
+      response_type: 'ephemeral',
+    });
+    return;
+  }
+  
   if (
     !command.channel_id ||
     (!command.channel_id.startsWith('C') && !command.channel_id.startsWith('G'))
@@ -131,6 +140,48 @@ app.command('/flight-add', async ({ command, ack, respond }) => {
     console.error('Error fetching flights:', error);
     await respond({ text: 'Error fetching flights. Check the airport code and try again!' });
   }
+});
+
+app.command('/flight-invite', async ({ command, ack, respond }) => {
+  await ack();
+  if (command.user_id !== process.env.OWNER_ID) {
+    await respond({
+      text: '❌ You are not allowed to use this command.',
+      response_type: 'ephemeral',
+    });
+    return;
+  }
+
+  const args = command.text.split(' ');
+  // claude generated regex for this... yeah
+  const inviteeId = args[0]?.replace(/^<@([^|>]+).*>$/, '$1');
+  const rm = args[1] === "remove";
+  if (!inviteeId) {
+    await respond({
+      text: 'provide a slack id idioiot',
+      response_type: 'ephemeral',
+    });
+    return;
+  }
+  if (rm) {
+    await db.invite.delete({
+      where: {
+        slackId: inviteeId,
+      }
+    })
+  } else {
+    await db.invite.create({
+      data: {
+        slackId: inviteeId,
+        invitedBy: command.user_id,
+      },
+    })
+  }
+
+  await respond({
+    text: `✅ ${rm ? 'Removed' : 'Added'} invite for <@${inviteeId}>.`,
+    response_type: 'ephemeral',
+  });
 });
 
 async function showFlightPage(

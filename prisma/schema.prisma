@@ -86,3 +86,9 @@ model AsAccount {
   updatedAt     DateTime  @updatedAt
   lastResetDate DateTime?
 }
+
+model Invite {
+  id String @id @default(cuid())
+  slackId String @unique
+  invitedBy String // slack id
+}
