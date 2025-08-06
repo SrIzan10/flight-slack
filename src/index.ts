@@ -1,5 +1,4 @@
 import { PrismaClient } from '@prisma/client';
-import BunCache from '@samocodes/bun-cache';
 import { App } from '@slack/bolt';
 import { OpenskyService } from './util/opensky';
 import { FlightAware, type ScheduledDeparture } from './util/flightAware';
@@ -18,7 +17,6 @@ export const app = new App({
 
 export const db = new PrismaClient();
 export const airports = new Airports();
-export const cache = new BunCache();
 export const openSky = new OpenskyService();
 export const flightAware = new FlightAware();
 export const adsbDb = new AdsBDB();
