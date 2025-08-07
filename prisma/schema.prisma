@@ -6,7 +6,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -31,11 +31,13 @@ model Flight {
   originIata String // iata code (agp)
   originName String // airport name
   originCity String // city name
+  originTimezone String // string timezone "region/capital"
 
   destinationIcao String // icao code
   destinationIata String // iata code
   destinationName String // airport name
   destinationCity String // city name
+  destinationTimezone String // string timezone "region/capital"
 
   // timing (stored in iso 8601 format on the api)
   scheduledOut DateTime?

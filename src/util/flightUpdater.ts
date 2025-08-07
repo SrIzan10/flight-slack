@@ -7,9 +7,9 @@ export class FlightUpdater {
 
   public start() {
     if (this.updateInterval) return;
-    
+
     console.log('flight updater starting');
-    
+
     this.updateInterval = setInterval(() => this.manageFlightPolling(), 10 * 60 * 1000);
     this.manageFlightPolling();
   }
@@ -19,8 +19,8 @@ export class FlightUpdater {
       clearInterval(this.updateInterval);
       this.updateInterval = null;
     }
-    
-    this.flightIntervals.forEach(interval => clearInterval(interval));
+
+    this.flightIntervals.forEach((interval) => clearInterval(interval));
     this.flightIntervals.clear();
   }
 
@@ -30,15 +30,27 @@ export class FlightUpdater {
         where: {
           actualIn: null,
           cancelled: false,
-          scheduledOff: {
-            gte: new Date(Date.now() - 4 * 60 * 60 * 1000),
-            lte: new Date(Date.now() + 24 * 60 * 60 * 1000),
-          }
-        }
+          OR: [
+            {
+              AND: [
+                { actualOff: null },
+                {
+                  scheduledOff: {
+                    gte: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
+                    lte: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+                  },
+                },
+              ],
+            },
+            {
+              AND: [{ actualOff: { not: null } }, { actualOn: null }],
+            },
+          ],
+        },
       });
 
       const currentlyTracked = new Set(this.flightIntervals.keys());
-      const activeFlightIds = new Set(flights.map(f => f.id));
+      const activeFlightIds = new Set(flights.map((f) => f.id));
 
       // remove intervals for flights no longer active
       for (const flightId of currentlyTracked) {
@@ -64,12 +76,14 @@ export class FlightUpdater {
 
   private setupFlightPolling(flight: Flight) {
     const pollInterval = this.calculatePollInterval(flight);
-    
-    console.log(`Setting up polling for flight ${flight.ident} every ${pollInterval / 60000} minutes`);
-    
+
+    console.log(
+      `Setting up polling for flight ${flight.ident} every ${pollInterval / 60000} minutes`
+    );
+
     // initial update
     this.updateSingleFlight(flight);
-    
+
     // set up interval
     const interval = setInterval(() => this.updateSingleFlightById(flight.id), pollInterval);
     this.flightIntervals.set(flight.id, interval);
@@ -130,14 +144,14 @@ export class FlightUpdater {
   private async updateSingleFlightById(flightId: string) {
     try {
       const flight = await db.flight.findUnique({
-        where: { id: flightId }
+        where: { id: flightId },
       });
-      
+
       if (!flight) {
         this.removeFlightPolling(flightId);
         return;
       }
-      
+
       await this.updateSingleFlight(flight);
     } catch (error) {
       console.error(`Error fetching flight ${flightId}:`, error);
@@ -148,9 +162,9 @@ export class FlightUpdater {
     console.log(`updating flight ${flight.ident} (${flight.id})`);
     try {
       const currentFlight = await db.flight.findUnique({
-        where: { id: flight.id }
+        where: { id: flight.id },
       });
-      
+
       if (!currentFlight || currentFlight.actualIn) {
         this.removeFlightPolling(flight.id);
         return;
@@ -158,53 +172,61 @@ export class FlightUpdater {
 
       const flightInfo = await flightAware.getFlightInfo(currentFlight.faFlightId);
       const newData = flightInfo.flights[0];
-      
+
       if (!newData) return;
 
       const changes = [];
-      
+
       if (currentFlight.status !== newData.status) {
         changes.push(`Status: ${newData.status}`);
       }
-      
+
       if (Math.abs((currentFlight.departureDelay || 0) - (newData.departure_delay || 0)) > 10) {
         changes.push(`Departure delay: ${newData.departure_delay || 0} minutes`);
       }
-      
+
       if (currentFlight.gateOrigin !== newData.gate_origin && newData.gate_origin) {
         changes.push(`Gate changed to: ${newData.gate_origin}`);
       }
-      
+
       if (!currentFlight.actualOff && newData.actual_off) {
         changes.push('✈️ Flight has taken off!');
         this.adjustFlightPolling(flight.id, flight);
       }
-      
+
       if (!currentFlight.actualOn && newData.actual_on) {
         changes.push('🛬 Flight has landed!');
         this.removeFlightPolling(flight.id);
       }
-      
+
       if (!currentFlight.cancelled && newData.cancelled) {
         changes.push('❌ Flight cancelled');
         this.removeFlightPolling(flight.id);
       }
 
       if (!currentFlight.diverted && newData.diverted) {
-        changes.push(`🚨 Flight diverted to ${newData.destination.code_iata} (${newData.destination.name})`);
+        changes.push(
+          `🚨 Flight diverted to ${newData.destination.code_iata} (${newData.destination.name})`
+        );
       }
 
       // 10 multiple updates (0 - 10, 10 - 20, etc.)
-      if (currentFlight.progressPercent !== null && 
-          newData.progress_percent !== null && 
-          newData.actual_off && 
-          !newData.actual_on && 
-          !currentFlight.actualOn) {
+      if (
+        currentFlight.progressPercent !== null &&
+        newData.progress_percent !== null &&
+        newData.actual_off &&
+        !newData.actual_on &&
+        !currentFlight.actualOn
+      ) {
         const oldTens = Math.floor((currentFlight.progressPercent || 0) / 10);
         const newTens = Math.floor(newData.progress_percent / 10);
-        
+
         if (oldTens !== newTens && newData.progress_percent !== 100) {
-          changes.push(`🔄 Flight progress: ${newData.progress_percent}%\n${this.slackProgressbar(newData.progress_percent)}`);
+          changes.push(
+            `🔄 Flight progress: ${newData.progress_percent}%\n${this.slackProgressbar(
+              newData.progress_percent
+            )}`
+          );
         }
       }
 
@@ -222,7 +244,7 @@ export class FlightUpdater {
           diverted: newData.diverted,
           gateOrigin: newData.gate_origin,
           progressPercent: newData.progress_percent,
-        }
+        },
       });
 
       // stop polling on completion
@@ -231,16 +253,18 @@ export class FlightUpdater {
       }
 
       if (changes.length > 0) {
-        const message = `🔔 *${currentFlight.ident}* (${currentFlight.originIata} → ${currentFlight.destinationIata})\n${changes.join('\n')}`;
-        
+        const message = `🔔 *${currentFlight.ident}* (${currentFlight.originIata} → ${
+          currentFlight.destinationIata
+        })\n${changes.join('\n')}`;
+
         await app.client.chat.postMessage({
           channel: currentFlight.channelId,
-          text: message
+          text: message,
         });
       }
     } catch (error) {
       console.error(`error updating flight ${flight.ident}:`, error);
-      
+
       // adjust polling for error
       this.adjustFlightPolling(flight.id, flight, true);
     }
@@ -253,7 +277,7 @@ export class FlightUpdater {
     }
 
     let newInterval = this.calculatePollInterval(flight);
-    
+
     if (isError) {
       newInterval *= 2;
     }
