@@ -71,7 +71,7 @@ export class FlightUpdater {
     this.updateSingleFlight(flight);
     
     // set up interval
-    const interval = setInterval(() => this.updateSingleFlight(flight), pollInterval);
+    const interval = setInterval(() => this.updateSingleFlightById(flight.id), pollInterval);
     this.flightIntervals.set(flight.id, interval);
   }
 
@@ -127,6 +127,23 @@ export class FlightUpdater {
     return 10 * 60 * 1000;
   }
 
+  private async updateSingleFlightById(flightId: string) {
+    try {
+      const flight = await db.flight.findUnique({
+        where: { id: flightId }
+      });
+      
+      if (!flight) {
+        this.removeFlightPolling(flightId);
+        return;
+      }
+      
+      await this.updateSingleFlight(flight);
+    } catch (error) {
+      console.error(`Error fetching flight ${flightId}:`, error);
+    }
+  }
+
   private async updateSingleFlight(flight: Flight) {
     console.log(`updating flight ${flight.ident} (${flight.id})`);
     try {
@@ -178,7 +195,11 @@ export class FlightUpdater {
       }
 
       // 10 multiple updates (0 - 10, 10 - 20, etc.)
-      if (currentFlight.progressPercent !== null && newData.progress_percent !== null && newData.actual_off && !newData.actual_on) {
+      if (currentFlight.progressPercent !== null && 
+          newData.progress_percent !== null && 
+          newData.actual_off && 
+          !newData.actual_on && 
+          !currentFlight.actualOn) {
         const oldTens = Math.floor((currentFlight.progressPercent || 0) / 10);
         const newTens = Math.floor(newData.progress_percent / 10);
         
@@ -237,7 +258,7 @@ export class FlightUpdater {
       newInterval *= 2;
     }
 
-    const interval = setInterval(() => this.updateSingleFlight(flight), newInterval);
+    const interval = setInterval(() => this.updateSingleFlightById(flightId), newInterval);
     this.flightIntervals.set(flightId, interval);
   }
 
