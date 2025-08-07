@@ -120,7 +120,7 @@ export class FlightUpdater {
       }
 
       // cruisin
-      return 12 * 60 * 1000;
+      return 20 * 60 * 1000;
     }
 
     // post arrival (eventually deleted)
